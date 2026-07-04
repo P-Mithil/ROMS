@@ -1,0 +1,13 @@
+export const ONBOARDING_DOCUMENT_TYPES = [
+  "SIGNED_OFFER",
+  "GOVERNMENT_ID",
+  "ADDRESS_PROOF",
+  "EDUCATION_CERTIFICATE",
+  "PREVIOUS_EMPLOYMENT_PROOF",
+  "TAX_ID_PAN",
+  "BANK_DETAILS",
+  "PHOTO",
+  "OTHER",
+] as const;
+
+export type OnboardingDocumentType = (typeof ONBOARDING_DOCUMENT_TYPES)[number];

@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { HealthData } from "@roms/shared";
 import { apiGet, ApiClientError } from "../lib/api-client.js";
+import { useAuth } from "../features/auth/useAuth.js";
+import { canAccessCandidates } from "../features/candidates/utils/permissions.js";
+import { canAccessInterviews } from "../features/interviews/utils/permissions.js";
+import { canAccessRequisitions } from "../features/requisitions/utils/permissions.js";
 
 type HealthState =
   | { status: "loading" }
@@ -8,6 +13,7 @@ type HealthState =
   | { status: "error"; message: string };
 
 export function HomePage() {
+  const { user } = useAuth();
   const [health, setHealth] = useState<HealthState>({ status: "loading" });
 
   useEffect(() => {
@@ -41,8 +47,32 @@ export function HomePage() {
     <div className="home-page">
       <h1>ROMS</h1>
       <p className="home-page__tagline">
-        Foundation setup complete. Sprint 1 will add authentication and RBAC.
+        Recruitment to Onboarding Management System
       </p>
+
+      {user && canAccessRequisitions(user) ? (
+        <p className="home-page__cta">
+          <Link className="btn btn--primary" to="/requisitions">
+            View requisitions
+          </Link>
+        </p>
+      ) : null}
+
+      {user && canAccessCandidates(user) ? (
+        <p className="home-page__cta">
+          <Link className="btn btn--secondary" to="/candidates">
+            View candidates
+          </Link>
+        </p>
+      ) : null}
+
+      {user && canAccessInterviews(user) ? (
+        <p className="home-page__cta">
+          <Link className="btn btn--secondary" to="/interviews">
+            View interviews
+          </Link>
+        </p>
+      ) : null}
 
       <div className="health-card">
         <h2>API Health</h2>
