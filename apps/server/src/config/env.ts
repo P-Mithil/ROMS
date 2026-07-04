@@ -14,6 +14,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   CORS_ORIGIN: z.string().url().default("http://localhost:5173"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
+  JWT_ACCESS_EXPIRES_IN: z.string().default("15m"),
+  JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -27,3 +31,5 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+export const isProduction = env.NODE_ENV === "production";

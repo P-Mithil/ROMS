@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 import { corsOptions } from "./config/cors.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -12,7 +13,9 @@ export function createApp(): Express {
 
   app.use(helmet());
   app.use(cors(corsOptions));
+  app.use(cookieParser());
   app.use(express.json());
+  app.set("trust proxy", 1);
   app.use(requestLogger);
 
   app.use("/api/v1", v1Router);
