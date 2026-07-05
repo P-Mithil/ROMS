@@ -9,7 +9,6 @@ import type {
   UpdateOfferInput,
   WithdrawOfferInput,
 } from "@roms/shared";
-import { ACTIVE_OFFER_STATUSES } from "@roms/shared";
 import { createHash, randomBytes } from "node:crypto";
 import { prisma } from "../../db/prisma.js";
 import {
@@ -555,7 +554,7 @@ export const offersService = {
       throw new BadRequestError("Offer link has expired", "OFFER_TOKEN_EXPIRED");
     }
 
-    let offer = await expireOfferIfNeeded(tokenRecord.offer);
+    const offer = await expireOfferIfNeeded(tokenRecord.offer);
 
     if (offer.status !== "EXTENDED") {
       throw new BadRequestError(

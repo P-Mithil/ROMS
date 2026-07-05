@@ -4,7 +4,6 @@ import type {
   ListOffersQuery,
   OfferDto,
   PaginationMeta,
-  PublicDeclineOfferRequest,
   RecordOfferAcceptanceRequest,
   RecordOfferDeclineRequest,
   RejectOfferApprovalRequest,

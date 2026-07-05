@@ -12,7 +12,6 @@ import {
   apiDelete,
   apiGet,
   apiGetWithMeta,
-  apiPatch,
   apiPost,
   apiPostFormData,
   downloadAuthenticatedFile,

@@ -7,7 +7,6 @@ import { useAuth } from "../../auth/useAuth.js";
 import { listEmployees } from "../api/employees-api.js";
 import { EmployeeStatusBadge } from "../components/EmployeeStatusBadge.js";
 import {
-  formatCurrency,
   formatDate,
   formatEmployeeStatus,
 } from "../utils/onboarding-labels.js";

@@ -245,12 +245,12 @@ export async function downloadAuthenticatedFile(
   URL.revokeObjectURL(url);
 }
 
-type ApiResponseWithMeta<T, TExtra extends object = {}> = ApiResponse<T> &
+type ApiResponseWithMeta<T, TExtra extends object = Record<string, never>> = ApiResponse<T> &
   TExtra & {
   meta?: PaginationMeta;
 };
 
-export async function apiGetWithMeta<T, TExtra extends object = {}>(
+export async function apiGetWithMeta<T, TExtra extends object = Record<string, never>>(
   path: string,
   token?: string | null,
 ): Promise<{ data: T; meta: PaginationMeta } & TExtra> {

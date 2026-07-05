@@ -67,7 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!cancelled) {
           setUser(me);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           clearSession();
         }

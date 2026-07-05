@@ -1,15 +1,12 @@
 import type {
   Department,
   Employee,
-  JobRequisition,
   OnboardingCase,
   OnboardingDocument,
   OnboardingTask,
   User,
 } from "@prisma/client";
 import type {
-  EmployeeDto,
-  EmployeeStatus,
   OnboardingCaseDto,
   OnboardingDocumentDto,
   OnboardingDocumentStatus,
