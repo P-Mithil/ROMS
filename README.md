@@ -150,6 +150,31 @@ DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/roms_dev
 
 Replace `YOUR_PASSWORD` with the password you chose during PostgreSQL installation.
 
+### 4. Enable AI features (optional — Groq)
+
+AI features (resume parsing, match scores, JD generation, insights, etc.) use **Groq** by default. Groq exposes an OpenAI-compatible API, so the server talks to it through the standard OpenAI SDK — only environment variables differ.
+
+1. Create a free API key at https://console.groq.com/keys
+2. Add it to the root `.env`:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=gsk_your_key_here
+```
+
+Defaults when `AI_PROVIDER=groq` (no further config needed):
+
+| Setting | Value |
+|---------|-------|
+| Model | `llama-3.3-70b-versatile` |
+| Base URL | `https://api.groq.com/openai/v1` |
+
+Optional overrides: `AI_MODEL`, `AI_BASE_URL`, `AI_TIMEOUT_MS` (default 45000 ms).
+
+**Switching to OpenAI** requires only env changes — set `AI_PROVIDER=openai` and `OPENAI_API_KEY=sk-...` (defaults to model `gpt-4o-mini` and the standard OpenAI base URL).
+
+If no API key is set, the app runs normally and AI endpoints return `503 AI_UNAVAILABLE`. Restart the dev server after changing `.env`.
+
 ## Quick start
 
 ```powershell

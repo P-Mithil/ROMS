@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type {
   HiringPriority,
   JobRequisitionDto,
@@ -12,12 +12,24 @@ import {
   REQUISITION_STATUSES,
   WORK_MODES,
 } from "@roms/shared";
+import { EmptyState } from "../../../components/ui/EmptyState.js";
+import { FilterPresetsBar } from "../../../components/ui/FilterPresetsBar.js";
+import { Icon } from "../../../components/ui/Icon.js";
+import { SkeletonList } from "../../../components/ui/Skeleton.js";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { useAuth } from "../../auth/useAuth.js";
 import { listDepartments } from "../api/lookups-api.js";
 import { listRequisitions } from "../api/requisitions-api.js";
 import { StatusBadge } from "../components/StatusBadge.js";
 import { canCreateRequisition } from "../utils/permissions.js";
+
+type RequisitionFilters = {
+  status: RequisitionStatus | "";
+  priority: HiringPriority | "";
+  departmentId: string;
+  workMode: WorkMode | "";
+  search: string;
+};
 
 const emptySummary: RequisitionListSummary = {
   total: 0,
@@ -29,12 +41,20 @@ const emptySummary: RequisitionListSummary = {
   totalShortlisted: 0,
 };
 
+function isRequisitionStatus(value: string): value is RequisitionStatus {
+  return (REQUISITION_STATUSES as readonly string[]).includes(value);
+}
+
 export function RequisitionListPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const statusFromUrl = searchParams.get("status") ?? "";
   const [items, setItems] = useState<JobRequisitionDto[]>([]);
   const [summary, setSummary] = useState<RequisitionListSummary>(emptySummary);
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
-  const [statusFilter, setStatusFilter] = useState<RequisitionStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<RequisitionStatus | "">(
+    isRequisitionStatus(statusFromUrl) ? statusFromUrl : "",
+  );
   const [priorityFilter, setPriorityFilter] = useState<HiringPriority | "">("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [workModeFilter, setWorkModeFilter] = useState<WorkMode | "">("");
@@ -44,6 +64,12 @@ export function RequisitionListPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isRequisitionStatus(statusFromUrl)) {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [statusFromUrl]);
 
   useEffect(() => {
     void listDepartments()
@@ -133,7 +159,7 @@ export function RequisitionListPage() {
 
         {user && canCreateRequisition(user) ? (
           <Link className="btn btn--primary" to="/requisitions/new">
-            New requisition
+            <Icon name="plus" /> New requisition
           </Link>
         ) : null}
       </div>
@@ -236,34 +262,60 @@ export function RequisitionListPage() {
           </label>
 
           <label className="form-field form-field--search">
-            <span className="form-field__label">Search</span>
+            <span className="form-field__label">
+              <Icon name="search" /> Search
+            </span>
             <input
               className="form-field__input"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search by title, skills, department, or hiring manager"
+              aria-label="Search requisitions"
             />
           </label>
         </div>
       </div>
 
+      <FilterPresetsBar<RequisitionFilters>
+        scope="requisitions"
+        currentFilters={{
+          status: statusFilter,
+          priority: priorityFilter,
+          departmentId: departmentFilter,
+          workMode: workModeFilter,
+          search,
+        }}
+        onApply={(filters) => {
+          setPage(1);
+          setStatusFilter(filters.status);
+          setPriorityFilter(filters.priority);
+          setDepartmentFilter(filters.departmentId);
+          setWorkModeFilter(filters.workMode);
+          setSearchInput(filters.search);
+          setSearch(filters.search);
+        }}
+      />
+
       {loading ? (
-        <div className="list-skeleton">
-          <div className="card skeleton-card" />
-          <div className="card skeleton-card" />
-          <div className="card skeleton-card" />
-        </div>
+        <SkeletonList rows={4} label="Loading requisitions" />
       ) : error ? (
-        <p className="form-error">{error}</p>
+        <p className="form-error" role="alert">
+          {error}
+        </p>
       ) : items.length === 0 ? (
-        <div className="card empty-state">
-          <h2>No requisitions found</h2>
-          <p>
-            {search || statusFilter || priorityFilter || departmentFilter || workModeFilter
+        <EmptyState
+          icon="briefcase"
+          title="No requisitions found"
+          description={
+            search || statusFilter || priorityFilter || departmentFilter || workModeFilter
               ? "Try clearing one or more filters to broaden the results."
-              : "Create your first requisition to start tracking hiring demand."}
-          </p>
-        </div>
+              : "Create your first requisition to start tracking hiring demand."
+          }
+          actionLabel={
+            user && canCreateRequisition(user) ? "New requisition" : undefined
+          }
+          actionTo="/requisitions/new"
+        />
       ) : (
         <div className="card table-card">
           <table className="data-table">

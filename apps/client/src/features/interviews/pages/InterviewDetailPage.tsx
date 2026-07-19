@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { InterviewDto } from "@roms/shared";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { useAuth } from "../../auth/useAuth.js";
+import { InterviewFeedbackAiPanel } from "../../ai/components/InterviewFeedbackAiPanel.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 import { getInterview } from "../api/interviews-api.js";
 import { InterviewActions } from "../components/InterviewActions.js";
 import { FeedbackProgressBadge } from "../components/FeedbackProgressBadge.js";
@@ -47,6 +49,7 @@ export function InterviewDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [aiSummaryDraft, setAiSummaryDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!interviewId) {
@@ -108,6 +111,7 @@ export function InterviewDetailPage() {
     interview.sequence,
     interview.customRoundLabel,
   );
+  const showAi = canUseAi(user);
 
   return (
     <div className="interviews-page">
@@ -222,6 +226,8 @@ export function InterviewDetailPage() {
           <InterviewFeedbackSection
             interview={interview}
             onUpdated={setInterview}
+            aiSummaryDraft={aiSummaryDraft}
+            onAiSummaryConsumed={() => setAiSummaryDraft(null)}
           />
 
           <div className="card">
@@ -243,14 +249,22 @@ export function InterviewDetailPage() {
           </div>
         </div>
 
-        {user ? (
-          <InterviewActions
-            interview={interview}
-            onUpdated={setInterview}
-            onDeleted={() => navigate("/interviews")}
-            onSuccess={setNotice}
-          />
-        ) : null}
+        <div className="detail-column">
+          {user ? (
+            <InterviewActions
+              interview={interview}
+              onUpdated={setInterview}
+              onDeleted={() => navigate("/interviews")}
+              onSuccess={setNotice}
+            />
+          ) : null}
+          {showAi ? (
+            <InterviewFeedbackAiPanel
+              interviewId={interview.id}
+              onApplySummary={setAiSummaryDraft}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

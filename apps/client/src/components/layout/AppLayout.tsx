@@ -1,9 +1,11 @@
-import { Link, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
+import { Icon } from "../ui/Icon.js";
 import { useAuth } from "../../features/auth/useAuth.js";
 import { canAccessCandidates } from "../../features/candidates/utils/permissions.js";
 import { canAccessInterviews } from "../../features/interviews/utils/permissions.js";
 import { canAccessOffers } from "../../features/offers/utils/permissions.js";
 import { canAccessOnboarding } from "../../features/onboarding/utils/permissions.js";
+import { canAccessReports } from "../../features/reports/utils/permissions.js";
 import { canAccessRequisitions } from "../../features/requisitions/utils/permissions.js";
 
 export function AppLayout() {
@@ -11,44 +13,61 @@ export function AppLayout() {
 
   return (
     <div className="app-layout">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <header className="app-header">
         <div className="app-header__brand">
-          <Link className="app-header__brand-link" to="/">
-            <span className="app-header__logo">R</span>
+          <NavLink className="app-header__brand-link" to="/">
+            <span className="app-header__logo" aria-hidden="true">
+              R
+            </span>
             <span className="app-header__title">ROMS</span>
-          </Link>
+          </NavLink>
         </div>
 
-        <nav className="app-nav">
+        <nav className="app-nav" aria-label="Primary">
           {user && canAccessRequisitions(user) ? (
-            <Link className="app-nav__link" to="/requisitions">
-              Requisitions
-            </Link>
+            <NavLink className="app-nav__link" to="/requisitions">
+              <Icon name="briefcase" />
+              <span>Requisitions</span>
+            </NavLink>
           ) : null}
           {user && canAccessCandidates(user) ? (
-            <Link className="app-nav__link" to="/candidates">
-              Candidates
-            </Link>
+            <NavLink className="app-nav__link" to="/candidates">
+              <Icon name="users" />
+              <span>Candidates</span>
+            </NavLink>
           ) : null}
           {user && canAccessInterviews(user) ? (
-            <Link className="app-nav__link" to="/interviews">
-              Interviews
-            </Link>
+            <NavLink className="app-nav__link" to="/interviews">
+              <Icon name="calendar" />
+              <span>Interviews</span>
+            </NavLink>
           ) : null}
           {user && canAccessOffers(user) ? (
-            <Link className="app-nav__link" to="/offers">
-              Offers
-            </Link>
+            <NavLink className="app-nav__link" to="/offers">
+              <Icon name="fileText" />
+              <span>Offers</span>
+            </NavLink>
           ) : null}
           {user && canAccessOnboarding(user) ? (
-            <Link className="app-nav__link" to="/onboarding">
-              Onboarding
-            </Link>
+            <NavLink className="app-nav__link" to="/onboarding">
+              <Icon name="clipboard" />
+              <span>Onboarding</span>
+            </NavLink>
           ) : null}
           {user && canAccessOnboarding(user) ? (
-            <Link className="app-nav__link" to="/employees">
-              Employees
-            </Link>
+            <NavLink className="app-nav__link" to="/employees">
+              <Icon name="userCheck" />
+              <span>Employees</span>
+            </NavLink>
+          ) : null}
+          {user && canAccessReports(user) ? (
+            <NavLink className="app-nav__link" to="/reports">
+              <Icon name="barChart" />
+              <span>Reports</span>
+            </NavLink>
           ) : null}
         </nav>
 
@@ -57,6 +76,7 @@ export function AppLayout() {
             <>
               <span className="app-header__user">
                 {user.firstName} {user.lastName}
+                <span className="app-header__role">{user.role.replaceAll("_", " ")}</span>
               </span>
               <button
                 className="btn btn--ghost"
@@ -67,13 +87,13 @@ export function AppLayout() {
               </button>
             </>
           ) : (
-            <Link className="btn btn--ghost" to="/login">
+            <NavLink className="btn btn--ghost" to="/login">
               Sign in
-            </Link>
+            </NavLink>
           )}
         </div>
       </header>
-      <main className="app-main">
+      <main id="main-content" className="app-main" tabIndex={-1}>
         <Outlet />
       </main>
     </div>

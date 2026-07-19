@@ -1,21 +1,29 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import type {
   CreateRequisitionRequest,
   EmploymentType,
   HiringPriority,
+  RequisitionTemplate,
   UpdateRequisitionRequest,
   WorkMode,
 } from "@roms/shared";
 import {
   EMPLOYMENT_TYPES,
   HIRING_PRIORITIES,
+  REQUISITION_TEMPLATES,
   WORK_MODES,
   createRequisitionSchema,
   updateRequisitionSchema,
 } from "@roms/shared";
 import { SkillsMultiSelect } from "../../../components/form/SkillsMultiSelect.js";
+import { FormHint } from "../../../components/ui/FormHint.js";
+import { Icon } from "../../../components/ui/Icon.js";
+import { useDraftAutosave } from "../../../hooks/useDraftAutosave.js";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { stringifySkills } from "../../../lib/skills.js";
+import { useAuth } from "../../auth/useAuth.js";
+import { RequisitionAiAssist } from "../../ai/components/RequisitionAiAssist.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 import { listDepartments, listHiringManagers } from "../api/lookups-api.js";
 
 export type RequisitionFormValues = {
@@ -36,6 +44,7 @@ export type RequisitionFormValues = {
 
 type RequisitionFormProps = {
   mode: "create" | "edit";
+  requisitionId?: string;
   initialValues?: RequisitionFormValues;
   submitLabel: string;
   descriptionOnly?: boolean;
@@ -67,6 +76,7 @@ const emptyValues: RequisitionFormValues = {
 
 export function RequisitionForm({
   mode,
+  requisitionId,
   initialValues,
   submitLabel,
   descriptionOnly = false,
@@ -74,6 +84,8 @@ export function RequisitionForm({
   onSubmit,
   onCancel,
 }: RequisitionFormProps) {
+  const { user } = useAuth();
+  const showAi = canUseAi(user);
   const [values, setValues] = useState<RequisitionFormValues>(
     initialValues ?? emptyValues,
   );
@@ -87,6 +99,18 @@ export function RequisitionForm({
   >({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+
+  const handleRestoreDraft = useCallback((draft: RequisitionFormValues) => {
+    setValues(draft);
+  }, []);
+
+  const draft = useDraftAutosave({
+    scope: "requisition-create",
+    enabled: mode === "create" && !descriptionOnly,
+    value: values,
+    onRestore: handleRestoreDraft,
+  });
 
   useEffect(() => {
     if (initialValues) {
@@ -141,6 +165,22 @@ export function RequisitionForm({
   ) {
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyTemplate(template: RequisitionTemplate) {
+    setSelectedTemplateId(template.id);
+    setValues((current) => ({
+      ...current,
+      title: template.title,
+      description: template.description,
+      skills: [...template.skills],
+      hiringPriority: template.hiringPriority,
+      employmentType: template.employmentType,
+      workMode: template.workMode,
+      openings: String(template.openings),
+      experienceMin: String(template.experienceMin),
+      experienceMax: String(template.experienceMax),
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -222,6 +262,9 @@ export function RequisitionForm({
     setSubmitting(true);
     try {
       await onSubmit(parsed.data);
+      if (mode === "create") {
+        draft.markSaved();
+      }
     } catch (err) {
       const message =
         err instanceof ApiClientError ? err.message : "Save failed";
@@ -239,7 +282,83 @@ export function RequisitionForm({
   }
 
   return (
-    <form className="form card" onSubmit={handleSubmit}>
+    <div className="form-with-ai">
+      {mode === "create" && !descriptionOnly ? (
+        <div className="card template-picker">
+          <div className="card__header-row">
+            <h2>
+              <Icon name="clipboard" /> Start from a template
+            </h2>
+          </div>
+          <FormHint>
+            Templates prefill title, JD, skills, and common defaults. Department
+            and hiring manager still need your selection. Drafts autosave on this
+            device until you create the requisition.
+          </FormHint>
+          <div className="template-picker__grid">
+            {REQUISITION_TEMPLATES.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className={`template-picker__item${
+                  selectedTemplateId === template.id
+                    ? " template-picker__item--active"
+                    : ""
+                }`}
+                onClick={() => applyTemplate(template)}
+              >
+                <strong>{template.label}</strong>
+                <span>
+                  {template.workMode.replaceAll("_", " ")} ·{" "}
+                  {template.experienceMin}-{template.experienceMax} yrs
+                </span>
+              </button>
+            ))}
+          </div>
+          {draft.restoredAt || draft.dirty ? (
+            <div className="draft-banner">
+              <span>
+                {draft.restoredAt
+                  ? `Restored local draft from ${new Date(draft.restoredAt).toLocaleString()}.`
+                  : "Local draft autosaving…"}
+              </span>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  draft.discard();
+                  setValues(emptyValues);
+                  setSelectedTemplateId("");
+                }}
+              >
+                Discard draft
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {showAi ? (
+        <RequisitionAiAssist
+          requisitionId={requisitionId}
+          title={values.title}
+          departmentName={
+            readOnlyDetails?.departmentName ??
+            departments.find((d) => d.id === values.departmentId)?.name
+          }
+          employmentType={values.employmentType}
+          workMode={values.workMode}
+          experienceMin={values.experienceMin}
+          experienceMax={values.experienceMax}
+          skills={values.skills}
+          onApplyDescription={(description) =>
+            updateField("description", description)
+          }
+          onApplySkills={(nextSkills) => updateField("skills", nextSkills)}
+        />
+      ) : null}
+
+      <form className="form card" onSubmit={handleSubmit}>
       {descriptionOnly ? (
         <div className="card card--muted">
           <dl className="detail-list">
@@ -276,6 +395,10 @@ export function RequisitionForm({
 
           <label className="form-field">
             <span className="form-field__label">Title</span>
+            <FormHint>
+              Prefer a clear role title. Templates and AI can help, but keep the
+              title specific to the opening.
+            </FormHint>
             <input
               className="form-field__input"
               value={values.title}
@@ -453,6 +576,10 @@ export function RequisitionForm({
 
       <label className="form-field">
         <span className="form-field__label">Description</span>
+        <FormHint>
+          Include responsibilities, requirements, and success signals. Use a
+          template or AI assist, then review before saving.
+        </FormHint>
         <textarea
           className="form-field__textarea"
           value={values.description}
@@ -478,5 +605,6 @@ export function RequisitionForm({
         </button>
       </div>
     </form>
+    </div>
   );
 }

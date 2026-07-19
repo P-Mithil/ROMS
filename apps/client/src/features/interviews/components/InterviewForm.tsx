@@ -12,6 +12,9 @@ import {
   updateInterviewSchema,
 } from "@roms/shared";
 import { ApiClientError } from "../../../lib/api-client.js";
+import { useAuth } from "../../auth/useAuth.js";
+import { InterviewQuestionsAssist } from "../../ai/components/InterviewQuestionsAssist.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 import { listCandidates } from "../../candidates/api/candidates-api.js";
 import { listInterviewers } from "../api/lookups-api.js";
 import { InterviewerMultiSelect } from "./InterviewerMultiSelect.js";
@@ -121,6 +124,8 @@ export function InterviewForm({
   onSubmit,
   onCancel,
 }: InterviewFormProps) {
+  const { user } = useAuth();
+  const showAi = canUseAi(user);
   const [values, setValues] = useState<InterviewFormValues>(
     initialValues ?? {
       ...emptyValues,
@@ -273,7 +278,19 @@ export function InterviewForm({
   }
 
   return (
-    <form className="card form-card" onSubmit={handleSubmit}>
+    <div className="form-with-ai">
+      {showAi ? (
+        <InterviewQuestionsAssist
+          candidateId={values.candidateId || lockedCandidate?.id || ""}
+          roundType={values.roundType}
+          customRoundLabel={values.customRoundLabel}
+          onApplyInstructions={(text) =>
+            setValues((current) => ({ ...current, instructions: text }))
+          }
+        />
+      ) : null}
+
+      <form className="card form-card" onSubmit={handleSubmit}>
       {conflictWarning ? (
         <div className="conflict-warning" role="alert">
           <strong>Scheduling conflict</strong>
@@ -509,5 +526,6 @@ export function InterviewForm({
         </button>
       </div>
     </form>
+    </div>
   );
 }

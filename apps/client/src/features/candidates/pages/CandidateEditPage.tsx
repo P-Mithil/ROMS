@@ -1,24 +1,32 @@
-import { useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { CandidateDto, UpdateCandidateRequest } from "@roms/shared";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { parseSkills } from "../../../lib/skills.js";
 import { useAuth } from "../../auth/useAuth.js";
+import type { CandidateAiApplyFields } from "../../ai/components/CandidateAiPanel.js";
 import {
   getCandidate,
   updateCandidate,
   uploadCandidateResume,
 } from "../api/candidates-api.js";
-import { CandidateForm } from "../components/CandidateForm.js";
+import {
+  CandidateForm,
+  type CandidateAiFilledFields,
+  type CandidateFormValues,
+} from "../components/CandidateForm.js";
 import { canEditCandidate } from "../utils/permissions.js";
 
-function toFormValues(candidate: CandidateDto) {
+function toFormValues(candidate: CandidateDto): CandidateFormValues {
   return {
     requisitionId: candidate.requisition.id,
     fullName: candidate.fullName,
     email: candidate.email,
     phone: candidate.phone,
-    totalExperienceYears: candidate.totalExperienceYears ?? "",
+    totalExperienceYears:
+      candidate.totalExperienceYears != null
+        ? String(candidate.totalExperienceYears)
+        : "",
     skills: parseSkills(candidate.skills),
     currentCompany: candidate.currentCompany ?? "",
     currentLocation: candidate.currentLocation ?? "",
@@ -30,14 +38,78 @@ function toFormValues(candidate: CandidateDto) {
   };
 }
 
+type EditLocationState = {
+  aiPrefill?: CandidateAiApplyFields;
+  aiSkillsOnly?: boolean;
+};
+
+function mergeAiPrefill(
+  base: CandidateFormValues,
+  prefill: CandidateAiApplyFields | undefined,
+  skillsOnly?: boolean,
+): { values: CandidateFormValues; aiFilled: CandidateAiFilledFields } {
+  if (!prefill) {
+    return { values: base, aiFilled: {} };
+  }
+
+  const values = { ...base };
+  const aiFilled: CandidateAiFilledFields = {};
+
+  if (skillsOnly) {
+    if (prefill.skills) {
+      values.skills = parseSkills(prefill.skills);
+      aiFilled.skills = true;
+    }
+    return { values, aiFilled };
+  }
+
+  if (prefill.fullName) {
+    values.fullName = prefill.fullName;
+    aiFilled.fullName = true;
+  }
+  if (prefill.email) {
+    values.email = prefill.email;
+    aiFilled.email = true;
+  }
+  if (prefill.phone) {
+    values.phone = prefill.phone;
+    aiFilled.phone = true;
+  }
+  if (prefill.totalExperienceYears != null) {
+    values.totalExperienceYears = String(prefill.totalExperienceYears);
+    aiFilled.totalExperienceYears = true;
+  }
+  if (prefill.skills) {
+    values.skills = parseSkills(prefill.skills);
+    aiFilled.skills = true;
+  }
+  if (prefill.currentCompany) {
+    values.currentCompany = prefill.currentCompany;
+    aiFilled.currentCompany = true;
+  }
+  if (prefill.currentLocation) {
+    values.currentLocation = prefill.currentLocation;
+    aiFilled.currentLocation = true;
+  }
+  if (prefill.noticePeriodDays != null) {
+    values.noticePeriodDays = String(prefill.noticePeriodDays);
+    aiFilled.noticePeriodDays = true;
+  }
+
+  return { values, aiFilled };
+}
+
 export function CandidateEditPage() {
   const { id } = useParams<{ id: string }>();
   const candidateId = id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [candidate, setCandidate] = useState<CandidateDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const locationState = (location.state as EditLocationState | null) ?? null;
 
   useEffect(() => {
     if (!candidateId) {
@@ -78,6 +150,17 @@ export function CandidateEditPage() {
     };
   }, [candidateId]);
 
+  const merged = useMemo(() => {
+    if (!candidate) {
+      return null;
+    }
+    return mergeAiPrefill(
+      toFormValues(candidate),
+      locationState?.aiPrefill,
+      locationState?.aiSkillsOnly,
+    );
+  }, [candidate, locationState?.aiPrefill, locationState?.aiSkillsOnly]);
+
   if (!user || !canEditCandidate(user)) {
     return <Navigate to="/candidates" replace />;
   }
@@ -94,7 +177,7 @@ export function CandidateEditPage() {
     );
   }
 
-  if (error || !candidate) {
+  if (error || !candidate || !merged) {
     return <p className="form-error">{error ?? "Candidate not found."}</p>;
   }
 
@@ -104,6 +187,12 @@ export function CandidateEditPage() {
         <div>
           <h1>Edit candidate</h1>
           <p className="page-header__subtitle">{candidate.fullName}</p>
+          {locationState?.aiPrefill ? (
+            <p className="meta-text">
+              AI suggestions are highlighted. Review and save to persist — nothing
+              was auto-saved.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -112,7 +201,8 @@ export function CandidateEditPage() {
         submitLabel="Save changes"
         allowResume
         readOnlyRequisitionTitle={candidate.requisition.title}
-        initialValues={toFormValues(candidate)}
+        initialValues={merged.values}
+        initialAiFilled={merged.aiFilled}
         onCancel={() => navigate(`/candidates/${candidate.id}`)}
         onSubmit={async (values, resumeFile) => {
           await updateCandidate(

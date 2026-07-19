@@ -98,7 +98,17 @@ export function InterviewerMultiSelect({
               </button>
             ))}
           </div>
-        ) : null}
+        ) : options.length === 0 ? (
+          <p className="meta-text meta-text--danger">
+            No interviewers found. Seed demo users or create an INTERVIEWER user
+            first.
+          </p>
+        ) : (
+          <p className="meta-text">
+            No matches. Clear the search and click a name from the list to
+            select them.
+          </p>
+        )}
       </div>
     </div>
   );

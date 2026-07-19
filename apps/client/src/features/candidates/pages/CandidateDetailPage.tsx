@@ -5,6 +5,9 @@ import { useToast } from "../../../components/feedback/ToastContext.js";
 import { parseSkills } from "../../../lib/skills.js";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { useAuth } from "../../auth/useAuth.js";
+import { CandidateAiPanel } from "../../ai/components/CandidateAiPanel.js";
+import type { CandidateAiApplyFields } from "../../ai/components/CandidateAiPanel.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 import {
   addCandidateNote,
   deleteCandidateResume,
@@ -316,7 +319,17 @@ export function CandidateDetailPage() {
     : false;
   const canViewOffers = user ? canAccessOffers(user) : false;
   const canViewOnboarding = user ? canAccessOnboarding(user) : false;
+  const showAi = canUseAi(user);
   const skills = parseSkills(currentCandidate.skills);
+
+  function stageAiPrefill(fields: CandidateAiApplyFields, skillsOnly = false) {
+    navigate(`/candidates/${currentCandidate.id}/edit`, {
+      state: {
+        aiPrefill: fields,
+        aiSkillsOnly: skillsOnly,
+      },
+    });
+  }
   const timeline = buildTimeline(currentCandidate);
   const feedbackInterviews = interviews.filter(
     (interview) =>
@@ -847,12 +860,29 @@ export function CandidateDetailPage() {
           </div>
         </div>
 
-        <CandidateActions
-          candidate={candidate}
-          onUpdated={setCandidate}
-          onDeleted={() => navigate("/candidates")}
-          onSuccess={setNotice}
-        />
+        <div className="detail-column">
+          <CandidateActions
+            candidate={candidate}
+            onUpdated={setCandidate}
+            onDeleted={() => navigate("/candidates")}
+            onSuccess={setNotice}
+          />
+          {showAi ? (
+            <CandidateAiPanel
+              candidateId={currentCandidate.id}
+              hasResume={Boolean(currentCandidate.resume)}
+              currentSkills={currentCandidate.skills ?? ""}
+              onApplyFields={(fields) => stageAiPrefill(fields)}
+              onApplySkills={(skillsText) =>
+                stageAiPrefill({ skills: skillsText }, true)
+              }
+              onAppendNotes={(text) =>
+                setNoteValue((current) => `${current}${text}`.trimStart())
+              }
+              onApplyNote={(content) => setNoteValue(content)}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

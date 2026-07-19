@@ -7,20 +7,35 @@ import { updatePanelSummary } from "../api/interviews-api.js";
 type PanelSummaryEditorProps = {
   interview: InterviewDto;
   onUpdated: (interview: InterviewDto) => void;
+  aiSummaryDraft?: string | null;
+  onAiSummaryConsumed?: () => void;
 };
 
 export function PanelSummaryEditor({
   interview,
   onUpdated,
+  aiSummaryDraft,
+  onAiSummaryConsumed,
 }: PanelSummaryEditorProps) {
   const { showToast } = useToast();
   const [value, setValue] = useState(interview.feedbackSummary ?? "");
+  const [fromAi, setFromAi] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     setValue(interview.feedbackSummary ?? "");
+    setFromAi(false);
   }, [interview.feedbackSummary]);
+
+  useEffect(() => {
+    if (!aiSummaryDraft) {
+      return;
+    }
+    setValue(aiSummaryDraft);
+    setFromAi(true);
+    onAiSummaryConsumed?.();
+  }, [aiSummaryDraft, onAiSummaryConsumed]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,11 +64,21 @@ export function PanelSummaryEditor({
         Short rollup for hiring managers after interviewer feedback is collected.
       </p>
       <label className="form-field">
-        <span className="form-field__label">Panel summary</span>
+        <span className="form-field__label-row">
+          <span className="form-field__label">Panel summary</span>
+          {fromAi ? (
+            <span className="ai-field-hint">
+              <span className="ai-badge">AI</span> draft applied
+            </span>
+          ) : null}
+        </span>
         <textarea
-          className="form-field__textarea"
+          className={`form-field__textarea${fromAi ? " form-field__textarea--ai" : ""}`}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
+          onChange={(event) => {
+            setFromAi(false);
+            setValue(event.target.value);
+          }}
           rows={4}
           maxLength={5000}
           placeholder="Summarize the panel decision and next steps"

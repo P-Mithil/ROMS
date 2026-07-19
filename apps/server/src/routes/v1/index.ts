@@ -10,6 +10,8 @@ import { offersRouter } from "../../modules/offers/offers.routes.js";
 import { publicOffersRouter } from "../../modules/offers/public-offers.routes.js";
 import { onboardingRouter } from "../../modules/onboarding/onboarding.routes.js";
 import { employeesRouter } from "../../modules/employees/employees.routes.js";
+import { reportsRouter } from "../../modules/reports/reports.routes.js";
+import { aiRouter } from "../../modules/ai/ai.routes.js";
 
 export const v1Router: IRouter = Router();
 
@@ -24,3 +26,5 @@ v1Router.use("/interviews", interviewsRouter);
 v1Router.use("/offers", offersRouter);
 v1Router.use("/onboarding", onboardingRouter);
 v1Router.use("/employees", employeesRouter);
+v1Router.use("/reports", reportsRouter);
+v1Router.use("/ai", aiRouter);

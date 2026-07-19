@@ -43,11 +43,16 @@ export function InterviewListPage() {
   const [searchParams] = useSearchParams();
   const candidateFilter = searchParams.get("candidateId") ?? "";
   const requisitionFilter = searchParams.get("requisitionId") ?? "";
+  const statusFromUrl = searchParams.get("status") ?? "";
 
   const [items, setItems] = useState<
     Awaited<ReturnType<typeof listInterviews>>["items"]
   >([]);
-  const [statusFilter, setStatusFilter] = useState<InterviewStatus | "">("");
+  const [statusFilter, setStatusFilter] = useState<InterviewStatus | "">(
+    (INTERVIEW_STATUSES as readonly string[]).includes(statusFromUrl)
+      ? (statusFromUrl as InterviewStatus)
+      : "",
+  );
   const [roundFilter, setRoundFilter] = useState<InterviewRoundType | "">("");
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -55,6 +60,12 @@ export function InterviewListPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if ((INTERVIEW_STATUSES as readonly string[]).includes(statusFromUrl)) {
+      setStatusFilter(statusFromUrl as InterviewStatus);
+    }
+  }, [statusFromUrl]);
 
   const statusChips = useMemo(
     () => [

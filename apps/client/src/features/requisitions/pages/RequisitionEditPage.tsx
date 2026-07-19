@@ -97,6 +97,7 @@ export function RequisitionEditPage() {
 
       <RequisitionForm
         mode="edit"
+        requisitionId={requisition.id}
         submitLabel={descriptionOnly ? "Save description" : "Save changes"}
         descriptionOnly={descriptionOnly}
         initialValues={{

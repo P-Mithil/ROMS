@@ -13,11 +13,15 @@ import {
 type InterviewFeedbackSectionProps = {
   interview: InterviewDto;
   onUpdated: (interview: InterviewDto) => void;
+  aiSummaryDraft?: string | null;
+  onAiSummaryConsumed?: () => void;
 };
 
 export function InterviewFeedbackSection({
   interview,
   onUpdated,
+  aiSummaryDraft,
+  onAiSummaryConsumed,
 }: InterviewFeedbackSectionProps) {
   const { user } = useAuth();
 
@@ -29,7 +33,8 @@ export function InterviewFeedbackSection({
     interview.status === "COMPLETED" ||
     interview.status === "NO_SHOW" ||
     interview.feedbackItems.length > 0 ||
-    interview.feedbackSummary;
+    interview.feedbackSummary ||
+    Boolean(aiSummaryDraft);
 
   if (!showFeedbackSection) {
     return null;
@@ -53,7 +58,12 @@ export function InterviewFeedbackSection({
       ) : null}
 
       {canEditSummary ? (
-        <PanelSummaryEditor interview={interview} onUpdated={onUpdated} />
+        <PanelSummaryEditor
+          interview={interview}
+          onUpdated={onUpdated}
+          aiSummaryDraft={aiSummaryDraft}
+          onAiSummaryConsumed={onAiSummaryConsumed}
+        />
       ) : interview.feedbackSummary ? (
         <div className="panel-summary-readonly">
           <h3>Panel summary</h3>

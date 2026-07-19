@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import type {
   CreateCandidateRequest,
   UpdateCandidateRequest,
@@ -8,9 +8,18 @@ import {
   updateCandidateSchema,
 } from "@roms/shared";
 import { SkillsMultiSelect } from "../../../components/form/SkillsMultiSelect.js";
+import { FormHint } from "../../../components/ui/FormHint.js";
+import { useToast } from "../../../components/feedback/ToastContext.js";
+import { useDraftAutosave } from "../../../hooks/useDraftAutosave.js";
 import { ApiClientError } from "../../../lib/api-client.js";
-import { stringifySkills } from "../../../lib/skills.js";
+import { parseSkills, stringifySkills } from "../../../lib/skills.js";
 import { listRequisitions } from "../../requisitions/api/requisitions-api.js";
+import { useAuth } from "../../auth/useAuth.js";
+import { parseResumeUpload } from "../../ai/api/ai-api.js";
+import { AiButton } from "../../ai/components/AiButton.js";
+import { AiPanel } from "../../ai/components/AiPanel.js";
+import { formatAiError } from "../../ai/utils/ai-helpers.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 
 export type CandidateFormValues = {
   requisitionId: string;
@@ -25,9 +34,25 @@ export type CandidateFormValues = {
   notes: string;
 };
 
+export type CandidateAiFilledFields = Partial<
+  Record<
+    | "fullName"
+    | "email"
+    | "phone"
+    | "totalExperienceYears"
+    | "skills"
+    | "currentCompany"
+    | "currentLocation"
+    | "noticePeriodDays"
+    | "notes",
+    boolean
+  >
+>;
+
 type CandidateFormProps = {
   mode: "create" | "edit";
   initialValues?: CandidateFormValues;
+  initialAiFilled?: CandidateAiFilledFields;
   readOnlyRequisitionTitle?: string;
   submitLabel: string;
   allowResume?: boolean;
@@ -51,34 +76,69 @@ const emptyValues: CandidateFormValues = {
   notes: "",
 };
 
+function aiClass(
+  filled: CandidateAiFilledFields,
+  field: keyof CandidateAiFilledFields,
+  base: string,
+) {
+  return filled[field] ? `${base} ${base}--ai` : base;
+}
+
 export function CandidateForm({
   mode,
   initialValues,
+  initialAiFilled,
   readOnlyRequisitionTitle,
   submitLabel,
   allowResume = false,
   onSubmit,
   onCancel,
 }: CandidateFormProps) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const showAi = canUseAi(user);
   const [values, setValues] = useState<CandidateFormValues>(
     initialValues ?? emptyValues,
+  );
+  const [aiFilled, setAiFilled] = useState<CandidateAiFilledFields>(
+    initialAiFilled ?? {},
   );
   const [openRequisitions, setOpenRequisitions] = useState<
     Array<{ id: string; title: string }>
   >([]);
   const [loadingLookups, setLoadingLookups] = useState(mode === "create");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiPreviewSummary, setAiPreviewSummary] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<
     Partial<Record<keyof CandidateFormValues, string>>
   >({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const handleRestoreDraft = useCallback((draft: CandidateFormValues) => {
+    setValues(draft);
+  }, []);
+
+  const draft = useDraftAutosave({
+    scope: "candidate-create",
+    enabled: mode === "create",
+    value: values,
+    onRestore: handleRestoreDraft,
+  });
+
   useEffect(() => {
     if (initialValues) {
       setValues(initialValues);
     }
   }, [initialValues]);
+
+  useEffect(() => {
+    if (initialAiFilled) {
+      setAiFilled(initialAiFilled);
+    }
+  }, [initialAiFilled]);
 
   useEffect(() => {
     if (mode !== "create") {
@@ -127,7 +187,77 @@ export function CandidateForm({
     value: CandidateFormValues[K],
   ) {
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    setAiFilled((current) => ({ ...current, [field]: false }));
     setValues((current) => ({ ...current, [field]: value }));
+  }
+
+  function applyAiPrefill(extracted: {
+    fullName: string | null;
+    email: string | null;
+    phone: string | null;
+    totalExperienceYears: number | null;
+    skills: string | null;
+    currentCompany: string | null;
+    currentLocation: string | null;
+    noticePeriodDays: number | null;
+  }) {
+    const nextFilled: CandidateAiFilledFields = {};
+    const nextValues: CandidateFormValues = { ...values };
+
+    if (extracted.fullName) {
+      nextValues.fullName = extracted.fullName;
+      nextFilled.fullName = true;
+    }
+    if (extracted.email) {
+      nextValues.email = extracted.email;
+      nextFilled.email = true;
+    }
+    if (extracted.phone) {
+      nextValues.phone = extracted.phone;
+      nextFilled.phone = true;
+    }
+    if (extracted.totalExperienceYears != null) {
+      nextValues.totalExperienceYears = String(extracted.totalExperienceYears);
+      nextFilled.totalExperienceYears = true;
+    }
+    if (extracted.skills) {
+      nextValues.skills = parseSkills(extracted.skills);
+      nextFilled.skills = true;
+    }
+    if (extracted.currentCompany) {
+      nextValues.currentCompany = extracted.currentCompany;
+      nextFilled.currentCompany = true;
+    }
+    if (extracted.currentLocation) {
+      nextValues.currentLocation = extracted.currentLocation;
+      nextFilled.currentLocation = true;
+    }
+    if (extracted.noticePeriodDays != null) {
+      nextValues.noticePeriodDays = String(extracted.noticePeriodDays);
+      nextFilled.noticePeriodDays = true;
+    }
+
+    setValues(nextValues);
+    setAiFilled(nextFilled);
+    setAiPreviewSummary(
+      "AI prefill applied to the form. Review highlighted fields before saving.",
+    );
+  }
+
+  async function handleAiParse(file: File) {
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const result = await parseResumeUpload(file);
+      applyAiPrefill(result.extracted);
+      showToast("AI prefill ready — review highlighted fields, then save.");
+    } catch (err) {
+      const message = formatAiError(err);
+      setAiError(message);
+      showToast(message, "error");
+    } finally {
+      setAiBusy(false);
+    }
   }
 
   function buildPayload() {
@@ -193,6 +323,9 @@ export function CandidateForm({
     setSubmitting(true);
     try {
       await onSubmit(parsed.data, resumeFile);
+      if (mode === "create") {
+        draft.markSaved();
+      }
     } catch (err) {
       const message =
         err instanceof ApiClientError ? err.message : "Save failed";
@@ -209,228 +342,324 @@ export function CandidateForm({
     );
   }
 
-  return (
-    <form className="form card" onSubmit={handleSubmit}>
-      <div className="form-section">
-        <div>
-          <h2 className="form-section__title">Personal Information</h2>
-          <p className="form-section__subtitle">
-            Capture the candidate's basic contact details.
-          </p>
-        </div>
-
-      {mode === "create" ? (
-        <label className="form-field">
-          <span className="form-field__label">Requisition</span>
-          <select
-            className="form-field__input"
-            value={values.requisitionId}
-            onChange={(event) =>
-              updateField("requisitionId", event.target.value)
-            }
-            required
-          >
-            <option value="">Select open requisition</option>
-            {openRequisitions.map((requisition) => (
-              <option key={requisition.id} value={requisition.id}>
-                {requisition.title}
-              </option>
-            ))}
-          </select>
-          {openRequisitions.length === 0 ? (
-            <p className="meta-text">
-              No open requisitions available. Candidates can only be added to
-              open requisitions.
-            </p>
-          ) : null}
-          {fieldErrors.requisitionId ? (
-            <p className="form-error">{fieldErrors.requisitionId}</p>
-          ) : null}
-        </label>
-      ) : (
-        <div className="card card--muted">
-          <dl className="detail-list">
-            <div>
-              <dt>Requisition</dt>
-              <dd>{readOnlyRequisitionTitle ?? "—"}</dd>
-            </div>
-          </dl>
-        </div>
-      )}
-
-      <label className="form-field">
-        <span className="form-field__label">Full name</span>
-        <input
-          className="form-field__input"
-          value={values.fullName}
-          onChange={(event) => updateField("fullName", event.target.value)}
-          required
-          maxLength={150}
-        />
-        {fieldErrors.fullName ? (
-          <p className="form-error">{fieldErrors.fullName}</p>
+  function labelWithAi(
+    text: string,
+    field: keyof CandidateAiFilledFields,
+  ) {
+    return (
+      <span className="form-field__label-row">
+        <span className="form-field__label">{text}</span>
+        {aiFilled[field] ? (
+          <span className="ai-field-hint">
+            <span className="ai-badge">AI</span> filled
+          </span>
         ) : null}
-      </label>
+      </span>
+    );
+  }
 
-      <div className="form-row">
-        <label className="form-field">
-          <span className="form-field__label">Email</span>
-          <input
-            className="form-field__input"
-            type="email"
-            value={values.email}
-            onChange={(event) => updateField("email", event.target.value)}
-            required
-            maxLength={255}
-          />
-          {fieldErrors.email ? (
-            <p className="form-error">{fieldErrors.email}</p>
-          ) : null}
-        </label>
-
-        <label className="form-field">
-          <span className="form-field__label">Phone</span>
-          <input
-            className="form-field__input"
-            value={values.phone}
-            onChange={(event) => updateField("phone", event.target.value)}
-            required
-            maxLength={30}
-          />
-          {fieldErrors.phone ? (
-            <p className="form-error">{fieldErrors.phone}</p>
-          ) : null}
-        </label>
-      </div>
-      </div>
-
-      <div className="form-section">
-        <div>
-          <h2 className="form-section__title">Professional Information</h2>
-          <p className="form-section__subtitle">
-            Add experience, current role context, and skill coverage.
-          </p>
-        </div>
-
-        <div className="form-row">
-          <label className="form-field">
-            <span className="form-field__label">Experience (years)</span>
-            <input
-              className="form-field__input"
-              type="number"
-              min={0}
-              max={60}
-              step={0.5}
-              value={values.totalExperienceYears}
-              onChange={(event) =>
-                updateField("totalExperienceYears", event.target.value)
-              }
-            />
-            {fieldErrors.totalExperienceYears ? (
-              <p className="form-error">{fieldErrors.totalExperienceYears}</p>
-            ) : null}
-          </label>
-
-          <label className="form-field">
-            <span className="form-field__label">Notice period (days)</span>
-            <input
-              className="form-field__input"
-              type="number"
-              min={0}
-              max={3650}
-              value={values.noticePeriodDays}
-              onChange={(event) =>
-                updateField("noticePeriodDays", event.target.value)
-              }
-            />
-            {fieldErrors.noticePeriodDays ? (
-              <p className="form-error">{fieldErrors.noticePeriodDays}</p>
-            ) : null}
-          </label>
-        </div>
-
-        <div className="form-row">
-          <label className="form-field">
-            <span className="form-field__label">Current company</span>
-            <input
-              className="form-field__input"
-              value={values.currentCompany}
-              onChange={(event) =>
-                updateField("currentCompany", event.target.value)
-              }
-              maxLength={150}
-            />
-          </label>
-
-          <label className="form-field">
-            <span className="form-field__label">Current location</span>
-            <input
-              className="form-field__input"
-              value={values.currentLocation}
-              onChange={(event) =>
-                updateField("currentLocation", event.target.value)
-              }
-              maxLength={150}
-            />
-          </label>
-        </div>
-
-        <SkillsMultiSelect
-          value={values.skills}
-          onChange={(next) => updateField("skills", next)}
-        />
-
-        <label className="form-field">
-          <span className="form-field__label">Profile notes</span>
-          <textarea
-            className="form-field__textarea"
-            value={values.notes}
-            onChange={(event) => updateField("notes", event.target.value)}
-            rows={3}
-            maxLength={5000}
-          />
-        </label>
-      </div>
-
-      {allowResume ? (
-        <div className="form-section">
-          <div>
-            <h2 className="form-section__title">Resume</h2>
-            <p className="form-section__subtitle">
-              Upload a PDF or Word document. You can replace it later.
-            </p>
-          </div>
-
-          <label className="form-field">
-            <span className="form-field__label">Resume (PDF or Word)</span>
-            <input
-              className="form-field__input"
-              type="file"
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setResumeFile(file);
-              }}
-            />
-          </label>
+  return (
+    <div className="form-with-ai">
+      {mode === "create" && (draft.restoredAt || draft.dirty) ? (
+        <div className="draft-banner">
+          <span>
+            {draft.restoredAt
+              ? `Restored local draft from ${new Date(draft.restoredAt).toLocaleString()}.`
+              : "Local draft autosaving…"}
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              draft.discard();
+              setValues(initialValues ?? emptyValues);
+              setAiFilled({});
+            }}
+          >
+            Discard draft
+          </button>
         </div>
       ) : null}
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {showAi && allowResume ? (
+        <AiPanel title="Resume upload intelligence" error={aiError}>
+          <p className="meta-text">
+            Choose a resume to auto-run AI parse, or parse manually. Prefill is a
+            preview only — nothing is saved until you submit.
+          </p>
+          {aiPreviewSummary ? (
+            <p className="page-notice">{aiPreviewSummary}</p>
+          ) : null}
+          <div className="button-row">
+            <AiButton
+              label="Parse uploaded resume"
+              loading={aiBusy}
+              disabled={!resumeFile}
+              onClick={() => {
+                if (resumeFile) {
+                  void handleAiParse(resumeFile);
+                }
+              }}
+            />
+          </div>
+        </AiPanel>
+      ) : null}
 
-      <div className="form-actions">
-        <button
-          className="btn btn--secondary"
-          type="button"
-          onClick={onCancel}
-          disabled={submitting}
-        >
-          Cancel
-        </button>
-        <button className="btn btn--primary" type="submit" disabled={submitting}>
-          {submitting ? "Saving…" : submitLabel}
-        </button>
-      </div>
-    </form>
+      <form className="form card" onSubmit={handleSubmit}>
+        {allowResume ? (
+          <div className="form-section">
+            <div>
+              <h2 className="form-section__title">Resume</h2>
+              <p className="form-section__subtitle">
+                Upload a PDF or Word document. You can replace it later.
+              </p>
+            </div>
+
+            <label className="form-field">
+              <span className="form-field__label">Resume (PDF or Word)</span>
+              <input
+                className="form-field__input"
+                type="file"
+                accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setResumeFile(file);
+                  setAiPreviewSummary(null);
+                  setAiError(null);
+                  if (file && showAi) {
+                    void handleAiParse(file);
+                  }
+                }}
+              />
+              <FormHint>
+                PDF or Word. When AI is available, parsing starts automatically
+                after upload so you can review highlighted fields.
+              </FormHint>
+            </label>
+          </div>
+        ) : null}
+
+        <div className="form-section">
+          <div>
+            <h2 className="form-section__title">Personal Information</h2>
+            <p className="form-section__subtitle">
+              Capture the candidate's basic contact details.
+            </p>
+          </div>
+
+          {mode === "create" ? (
+            <label className="form-field">
+              <span className="form-field__label">Requisition</span>
+              <select
+                className="form-field__input"
+                value={values.requisitionId}
+                onChange={(event) =>
+                  updateField("requisitionId", event.target.value)
+                }
+                required
+              >
+                <option value="">Select open requisition</option>
+                {openRequisitions.map((requisition) => (
+                  <option key={requisition.id} value={requisition.id}>
+                    {requisition.title}
+                  </option>
+                ))}
+              </select>
+              {openRequisitions.length === 0 ? (
+                <p className="meta-text">
+                  No open requisitions available. Candidates can only be added to
+                  open requisitions.
+                </p>
+              ) : null}
+              {fieldErrors.requisitionId ? (
+                <p className="form-error">{fieldErrors.requisitionId}</p>
+              ) : null}
+            </label>
+          ) : (
+            <div className="card card--muted">
+              <dl className="detail-list">
+                <div>
+                  <dt>Requisition</dt>
+                  <dd>{readOnlyRequisitionTitle ?? "—"}</dd>
+                </div>
+              </dl>
+            </div>
+          )}
+
+          <label className="form-field">
+            {labelWithAi("Full name", "fullName")}
+            <input
+              className={aiClass(aiFilled, "fullName", "form-field__input")}
+              value={values.fullName}
+              onChange={(event) => updateField("fullName", event.target.value)}
+              required
+              maxLength={150}
+            />
+            {fieldErrors.fullName ? (
+              <p className="form-error">{fieldErrors.fullName}</p>
+            ) : null}
+          </label>
+
+          <div className="form-row">
+            <label className="form-field">
+              {labelWithAi("Email", "email")}
+              <FormHint>Use the candidate’s primary work or personal email.</FormHint>
+              <input
+                className={aiClass(aiFilled, "email", "form-field__input")}
+                type="email"
+                value={values.email}
+                onChange={(event) => updateField("email", event.target.value)}
+                required
+                maxLength={255}
+              />
+              {fieldErrors.email ? (
+                <p className="form-error">{fieldErrors.email}</p>
+              ) : null}
+            </label>
+
+            <label className="form-field">
+              {labelWithAi("Phone", "phone")}
+              <input
+                className={aiClass(aiFilled, "phone", "form-field__input")}
+                value={values.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
+                required
+                maxLength={30}
+              />
+              {fieldErrors.phone ? (
+                <p className="form-error">{fieldErrors.phone}</p>
+              ) : null}
+            </label>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <div>
+            <h2 className="form-section__title">Professional Information</h2>
+            <p className="form-section__subtitle">
+              Add experience, current role context, and skill coverage.
+            </p>
+          </div>
+
+          <div className="form-row">
+            <label className="form-field">
+              {labelWithAi("Experience (years)", "totalExperienceYears")}
+              <input
+                className={aiClass(
+                  aiFilled,
+                  "totalExperienceYears",
+                  "form-field__input",
+                )}
+                type="number"
+                min={0}
+                max={60}
+                step={0.5}
+                value={values.totalExperienceYears}
+                onChange={(event) =>
+                  updateField("totalExperienceYears", event.target.value)
+                }
+              />
+              {fieldErrors.totalExperienceYears ? (
+                <p className="form-error">{fieldErrors.totalExperienceYears}</p>
+              ) : null}
+            </label>
+
+            <label className="form-field">
+              {labelWithAi("Notice period (days)", "noticePeriodDays")}
+              <input
+                className={aiClass(
+                  aiFilled,
+                  "noticePeriodDays",
+                  "form-field__input",
+                )}
+                type="number"
+                min={0}
+                max={3650}
+                value={values.noticePeriodDays}
+                onChange={(event) =>
+                  updateField("noticePeriodDays", event.target.value)
+                }
+              />
+              {fieldErrors.noticePeriodDays ? (
+                <p className="form-error">{fieldErrors.noticePeriodDays}</p>
+              ) : null}
+            </label>
+          </div>
+
+          <div className="form-row">
+            <label className="form-field">
+              {labelWithAi("Current company", "currentCompany")}
+              <input
+                className={aiClass(
+                  aiFilled,
+                  "currentCompany",
+                  "form-field__input",
+                )}
+                value={values.currentCompany}
+                onChange={(event) =>
+                  updateField("currentCompany", event.target.value)
+                }
+                maxLength={150}
+              />
+            </label>
+
+            <label className="form-field">
+              {labelWithAi("Current location", "currentLocation")}
+              <input
+                className={aiClass(
+                  aiFilled,
+                  "currentLocation",
+                  "form-field__input",
+                )}
+                value={values.currentLocation}
+                onChange={(event) =>
+                  updateField("currentLocation", event.target.value)
+                }
+                maxLength={150}
+              />
+            </label>
+          </div>
+
+          <div className={aiFilled.skills ? "ai-skills-wrap" : undefined}>
+            {aiFilled.skills ? (
+              <span className="ai-field-hint">
+                <span className="ai-badge">AI</span> skills filled
+              </span>
+            ) : null}
+            <SkillsMultiSelect
+              value={values.skills}
+              onChange={(next) => updateField("skills", next)}
+            />
+          </div>
+
+          <label className="form-field">
+            <span className="form-field__label">Profile notes</span>
+            <textarea
+              className="form-field__textarea"
+              value={values.notes}
+              onChange={(event) => updateField("notes", event.target.value)}
+              rows={3}
+              maxLength={5000}
+            />
+          </label>
+        </div>
+
+        {error ? <p className="form-error">{error}</p> : null}
+
+        <div className="form-actions">
+          <button
+            className="btn btn--secondary"
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button className="btn btn--primary" type="submit" disabled={submitting}>
+            {submitting ? "Saving…" : submitLabel}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

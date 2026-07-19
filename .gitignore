@@ -15,6 +15,9 @@ build/
 apps/server/prisma/*.db
 apps/server/prisma/*.db-journal
 
+# User-uploaded files (resumes, onboarding documents)
+apps/server/uploads/
+
 # Logs
 logs/
 *.log

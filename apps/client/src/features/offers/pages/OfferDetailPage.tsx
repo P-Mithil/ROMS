@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { JobRequisitionDto, OfferDto, OnboardingCaseDto } from "@roms/shared";
 import { ApiClientError } from "../../../lib/api-client.js";
 import { useAuth } from "../../auth/useAuth.js";
+import { OfferAiPanel } from "../../ai/components/OfferAiPanel.js";
+import { canUseAi } from "../../ai/utils/permissions.js";
 import { listOnboardingCases } from "../../onboarding/api/onboarding-api.js";
 import { StatusBadge as OnboardingStatusBadge } from "../../onboarding/components/StatusBadge.js";
 import { canAccessOnboarding } from "../../onboarding/utils/permissions.js";
@@ -144,6 +146,7 @@ export function OfferDetailPage() {
       ? Math.max(requisition.openings - requisition.filledPositions, 0)
       : null;
   const canViewOnboarding = user ? canAccessOnboarding(user) : false;
+  const showAi = canUseAi(user);
 
   return (
     <div className="offers-page">
@@ -348,12 +351,21 @@ export function OfferDetailPage() {
           </div>
         </div>
 
-        <OfferActions
-          offer={offer}
-          onUpdated={setOffer}
-          onDeleted={() => navigate("/offers")}
-          onSuccess={setNotice}
-        />
+        <div className="detail-column">
+          <OfferActions
+            offer={offer}
+            onUpdated={setOffer}
+            onDeleted={() => navigate("/offers")}
+            onSuccess={setNotice}
+          />
+          {showAi ? (
+            <OfferAiPanel
+              candidateId={offer.candidate.id}
+              offerId={offer.id}
+              joiningDate={offer.joiningDate}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

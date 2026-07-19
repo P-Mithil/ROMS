@@ -75,6 +75,13 @@ export { OFFER_STATUSES, ACTIVE_OFFER_STATUSES } from "./constants/offer-status.
 export type { InterviewStatus } from "./constants/interview-status.js";
 export { INTERVIEW_STATUSES } from "./constants/interview-status.js";
 export { COMMON_SKILLS } from "./constants/common-skills.js";
+export {
+  REQUISITION_TEMPLATES,
+} from "./constants/requisition-templates.js";
+export type {
+  RequisitionTemplate,
+  RequisitionTemplateId,
+} from "./constants/requisition-templates.js";
 export type {
   HiringPriority,
   EmploymentType,
@@ -262,3 +269,103 @@ export type {
   UpdateEmployeeInput,
   ListEmployeesQueryInput,
 } from "./validators/employee.js";
+export type {
+  ReportDataset,
+  ReportExportFormat,
+  ReportDatePreset,
+  ReportInterviewDateBasis,
+  ReportOfferDateBasis,
+  ReportOnboardingDateBasis,
+} from "./constants/report.js";
+export {
+  REPORT_DATASETS,
+  REPORT_EXPORT_FORMATS,
+  REPORT_DATE_PRESETS,
+  REPORT_INTERVIEW_DATE_BASIS,
+  REPORT_OFFER_DATE_BASIS,
+  REPORT_ONBOARDING_DATE_BASIS,
+  MAX_REPORT_RANGE_DAYS,
+  MAX_REPORT_EXPORT_ROWS,
+} from "./constants/report.js";
+export type {
+  ReportFilters,
+  StatusCountDto,
+  NamedCountDto,
+  ConversionRatioDto,
+  CurrencyAverageDto,
+  ReportOverviewDto,
+  ReportRecruitmentDto,
+  ReportFunnelDto,
+  ReportDepartmentRowDto,
+  ReportDepartmentsDto,
+  ReportInterviewsDto,
+  ReportOffersDto,
+  ReportOnboardingDto,
+  ReportEmployeesDto,
+  ReportExportRequest,
+} from "./types/report.js";
+export {
+  reportFiltersSchema,
+  reportExportQuerySchema,
+  reportExportParamsSchema,
+} from "./validators/report.js";
+export type {
+  ReportFiltersInput,
+  ReportExportQueryInput,
+  ReportExportParamsInput,
+} from "./validators/report.js";
+export type {
+  AiEmailTemplate,
+  AiFieldConfidence,
+  AiMatchRecommendation,
+  AiNoteIntent,
+} from "./constants/ai.js";
+export {
+  AI_EMAIL_TEMPLATES,
+  AI_NOTE_INTENTS,
+  AI_FIELD_CONFIDENCE,
+  AI_MATCH_RECOMMENDATIONS,
+  AI_MATCH_RECOMMENDATION_LABELS,
+} from "./constants/ai.js";
+export type {
+  AiExtractedCandidateFields,
+  AiParseResumeResult,
+  AiResumeSummaryResult,
+  AiNormalizeSkillsResult,
+  AiSuggestTagsResult,
+  AiResumeQualityResult,
+  AiMatchBreakdown,
+  AiMatchResult,
+  AiSkillGapResult,
+  AiCompareCandidateRow,
+  AiCompareResult,
+  AiRiskAnalysisResult,
+  AiJdGenerateResult,
+  AiRequisitionImproveResult,
+  AiInterviewQuestionsResult,
+  AiEmailDraftResult,
+  AiDraftNoteResult,
+  AiSalarySuggestionResult,
+  AiFeedbackIntelligenceResult,
+  AiInsightsResult,
+  AiMissingSkillsResult,
+  AiWeeklySummaryResult,
+} from "./types/ai.js";
+export {
+  normalizeSkillsSchema,
+  generateJdSchema,
+  generateQuestionsSchema,
+  generateEmailSchema,
+  draftNoteSchema,
+  compareCandidatesSchema,
+  insightsFiltersSchema,
+} from "./validators/ai.js";
+export type {
+  NormalizeSkillsInput,
+  GenerateJdInput,
+  GenerateQuestionsInput,
+  GenerateEmailInput,
+  DraftNoteInput,
+  CompareCandidatesInput,
+  InsightsFiltersInput,
+} from "./validators/ai.js";
